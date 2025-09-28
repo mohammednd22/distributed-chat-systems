@@ -1,4 +1,4 @@
-package com.chatflow;
+package com.chatflow.server;
 
 import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.databind.ObjectMapper;
