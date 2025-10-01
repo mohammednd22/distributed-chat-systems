@@ -14,7 +14,7 @@ public class ChatMessage {
     private String message;
 
     @JsonProperty("timestamp")
-    private Instant timestamp;
+    private String timestamp;
 
     @JsonProperty("messageType")
     private MessageType messageType;
@@ -27,7 +27,7 @@ public class ChatMessage {
         this.userId = userId;
         this.username = username;
         this.message = message;
-        this.timestamp = Instant.now();
+        this.timestamp = timestamp;
         this.messageType = messageType;
     }
 
@@ -40,8 +40,8 @@ public class ChatMessage {
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
 
-    public Instant getTimestamp() { return timestamp; }
-    public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+    public String getTimestamp() { return timestamp; }
+    public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
 
     public MessageType getMessageType() { return messageType; }
     public void setMessageType(MessageType messageType) { this.messageType = messageType; }
