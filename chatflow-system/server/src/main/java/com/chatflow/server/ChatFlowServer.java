@@ -164,11 +164,20 @@ public class ChatFlowServer extends WebSocketServer {
 
     public static void main(String[] args) {
         int port = 8080;
-        ChatFlowServer server = new ChatFlowServer(port);
-        server.start();
+        int healthPort = 8081;
+        try {
+            ChatFlowServer wsServer = new ChatFlowServer(port);
+            wsServer.start();
+            System.out.println("Server running on port " + port);
 
-        System.out.println("Server running on port " + port);
-        System.out.println("Press Ctrl+C to stop");
+            HealthCheckServer healthServer = new HealthCheckServer(healthPort);
+            healthServer.start();
+            System.out.println("Server running on port " + healthPort);
+
+            System.out.println("Press Ctrl+C to stop");
+        } catch (Exception e) {
+            System.out.println("Failed to start servers " + e.getMessage());
+        }
     }
 
 }
