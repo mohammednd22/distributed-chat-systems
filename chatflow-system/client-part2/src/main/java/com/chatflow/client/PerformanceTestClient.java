@@ -1,14 +1,13 @@
 package com.chatflow.client;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class LoadTestClient {
+public class PerformanceTestClient {
 
     private static final String SERVER_URL = "ws://54.244.12.165:8080/chat/";
     private static final int WARMUP_THREADS = 32;
@@ -16,14 +15,15 @@ public class LoadTestClient {
     private static final int TOTAL_MESSAGES = 500000;
     private static final int QUEUE_CAPACITY = 40000;
 
+    private static MetricsCollector metricsCollector = new MetricsCollector();
     private static ConnectionStats stats = new ConnectionStats();
     private static AtomicInteger successCount = new AtomicInteger(0);
     private static AtomicInteger failureCount = new AtomicInteger(0);
     private static Random random = new Random();
 
     public static void main(String[] args) {
-        System.out.println("=== ChatFlow Load Test Client ===");
-        System.out.println("Target: " + TOTAL_MESSAGES + " messages");
+        System.out.println("=== ChatFlow Performance Test Client ===");
+        System.out.println("Target: " + TOTAL_MESSAGES + " messages with detailed metrics");
 
         long startTime = System.currentTimeMillis();
 
@@ -35,84 +35,72 @@ public class LoadTestClient {
             int warmupMessages = WARMUP_THREADS * MESSAGES_PER_WARMUP_THREAD;
             int remainingMessages = TOTAL_MESSAGES - warmupMessages;
 
-            // Phase 2: Main load with producer-consumer
-            System.out.println("\n--- Phase 2: Main Load (Producer-Consumer) ---");
-            System.out.println("Remaining messages: " + remainingMessages);
-            runMainPhaseWithQueue(remainingMessages);
+            // Phase 2: Main load
+            System.out.println("\n--- Phase 2: Main Load ---");
+            runMainPhase(remainingMessages);
 
-            // Calculate and display results
+            // Calculate results
             long endTime = System.currentTimeMillis();
             displayResults(startTime, endTime);
 
+            // Statistical analysis
+            performStatisticalAnalysis();
+
+            // Write to CSV
+            exportToCSV();
+
+            // Visualize throughput
+            visualizeThroughput();
+
         } catch (Exception e) {
-            System.out.println("Error during load test: " + e.getMessage());
+            System.out.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
     private static void runWarmupPhase() throws Exception {
-        // Create message queue for warmup
         MessageQueue queue = new MessageQueue(QUEUE_CAPACITY);
         int warmupMessages = WARMUP_THREADS * MESSAGES_PER_WARMUP_THREAD;
 
-        // Start producer thread
         Thread producer = new Thread(new MessageProducer(queue, warmupMessages));
         producer.start();
 
-        // Create latch for warmup clients
         CountDownLatch latch = new CountDownLatch(WARMUP_THREADS);
-
         long phaseStart = System.currentTimeMillis();
 
-        // Create 32 consumer clients
         for (int i = 0; i < WARMUP_THREADS; i++) {
             int roomId = random.nextInt(20) + 1;
             URI serverUri = new URI(SERVER_URL + roomId);
 
-            ChatClient client = new ChatClient(
-                    serverUri,
-                    queue,
-                    MESSAGES_PER_WARMUP_THREAD,
-                    latch,
-                    successCount,
-                    failureCount,
-                    stats
+            PerformanceChatClient client = new PerformanceChatClient(
+                    serverUri, queue, metricsCollector, MESSAGES_PER_WARMUP_THREAD,
+                    roomId, latch, successCount, failureCount, stats
             );
 
             client.connect();
-            //Thread.sleep(10);
         }
 
-        System.out.println("Waiting for warmup phase to complete...");
-        latch.await(250, TimeUnit.SECONDS);
-        System.out.println("Messages still in queue: " + queue.size());
+        latch.await(180, TimeUnit.SECONDS);
         producer.join(60000);
 
         long phaseEnd = System.currentTimeMillis();
-        double phaseDuration = (phaseEnd - phaseStart) / 1000.0;
+        double duration = (phaseEnd - phaseStart) / 1000.0;
 
-        System.out.println("Warmup complete!");
-        System.out.println("Time: " + phaseDuration + " seconds");
-        System.out.println("Warmup throughput: " + (warmupMessages / phaseDuration) + " msg/sec");
+        System.out.println("Warmup complete in " + duration + " seconds");
     }
 
-    private static void runMainPhaseWithQueue(int remainingMessages) throws Exception {
-        // Create message queue
+    private static void runMainPhase(int remainingMessages) throws Exception {
         MessageQueue queue = new MessageQueue(QUEUE_CAPACITY);
 
-        // Start producer thread
         Thread producer = new Thread(new MessageProducer(queue, remainingMessages));
         producer.start();
 
-        // Calculate number of consumer threads
         int messagesPerThread = 500;
         int numThreads = (int) Math.ceil((double) remainingMessages / messagesPerThread);
 
         CountDownLatch latch = new CountDownLatch(numThreads);
-
         long phaseStart = System.currentTimeMillis();
 
-        // Create consumer clients
         for (int i = 0; i < numThreads; i++) {
             int roomId = random.nextInt(20) + 1;
             URI serverUri = new URI(SERVER_URL + roomId);
@@ -120,30 +108,21 @@ public class LoadTestClient {
             int messagesToSend = (i == numThreads - 1) ?
                     (remainingMessages - (i * messagesPerThread)) : messagesPerThread;
 
-            ChatClient client = new ChatClient(
-                    serverUri,
-                    queue,
-                    messagesToSend,
-                    latch,
-                    successCount,
-                    failureCount,
-                    stats
+            PerformanceChatClient client = new PerformanceChatClient(
+                    serverUri, queue, metricsCollector, messagesToSend,
+                    roomId, latch, successCount, failureCount, stats
             );
 
             client.connect();
-            //Thread.sleep(10);
         }
 
-        System.out.println("Waiting for main phase to complete...");
-        latch.await(250, TimeUnit.SECONDS);
-        System.out.println("Messages still in queue: " + queue.size());
-        producer.join(60000); // Wait for producer to finish
+        latch.await(180, TimeUnit.SECONDS);
+        producer.join(60000);
 
         long phaseEnd = System.currentTimeMillis();
-        double phaseDuration = (phaseEnd - phaseStart) / 1000.0;
+        double duration = (phaseEnd - phaseStart) / 1000.0;
 
-        System.out.println("Main phase complete!");
-        System.out.println("Time: " + phaseDuration + " seconds");
+        System.out.println("Main phase complete in " + duration + " seconds");
     }
 
     private static void displayResults(long startTime, long endTime) {
@@ -156,8 +135,29 @@ public class LoadTestClient {
         System.out.println("Successful: " + successCount.get());
         System.out.println("Failed: " + failureCount.get());
         System.out.println("Total time: " + totalTime + " seconds");
-        System.out.println("Overall throughput: " + String.format("%.2f", throughput) + " messages/second");
+        System.out.println("Overall throughput: " + String.format("%.2f", throughput) + " msg/sec");
 
         stats.printStats();
+    }
+
+    private static void performStatisticalAnalysis() {
+        List<MessageMetric> allMetrics = metricsCollector.getAllMetrics();
+        StatisticalAnalysis analysis = new StatisticalAnalysis(allMetrics);
+        analysis.printStatistics();
+    }
+
+    private static void exportToCSV() {
+        List<MessageMetric> allMetrics = metricsCollector.getAllMetrics();
+        String filename = "results/performance_metrics.csv";
+        CSVWriter.writeMetrics(allMetrics, filename);
+    }
+
+    private static void visualizeThroughput() {
+        List<MessageMetric> allMetrics = metricsCollector.getAllMetrics();
+        ThroughputVisualizer visualizer = new ThroughputVisualizer(allMetrics);
+
+
+        visualizer.generateChart("results/throughput_chart.png");
+        visualizer.exportChartData("results/throughput_over_time.csv");
     }
 }
