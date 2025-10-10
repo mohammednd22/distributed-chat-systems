@@ -37,6 +37,7 @@ public class ChatClient extends WebSocketClient {
         this.shouldReturnToPool = (connectionPool != null);
     }
 
+    // Old Constructor
     public ChatClient(URI serverUri, MessageQueue messageQueue, int messagesToSend,
                       CountDownLatch latch, AtomicInteger successCount,
                       AtomicInteger failureCount, ConnectionStats stats) {
@@ -92,7 +93,7 @@ public class ChatClient extends WebSocketClient {
         }).start();
     }
 
-    // New method: Send with exponential backoff retry
+    // Send with exponential backoff retry
     private boolean sendWithRetry(String message, int maxRetries) {
         int attempt = 0;
 

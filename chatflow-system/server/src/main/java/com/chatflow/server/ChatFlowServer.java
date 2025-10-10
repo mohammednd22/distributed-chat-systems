@@ -129,7 +129,6 @@ public class ChatFlowServer extends WebSocketServer {
             return "timestamp is required";
         }
 
-        // If we get here, everything is valid
         return null;
     }
 
