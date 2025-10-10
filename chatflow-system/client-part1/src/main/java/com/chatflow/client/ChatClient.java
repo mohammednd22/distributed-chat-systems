@@ -16,6 +16,26 @@ public class ChatClient extends WebSocketClient {
     private AtomicInteger failureCount;
     private int messagesToSend;
     private int sentCount = 0;
+    private static final int MAX_RECONNECT_ATTEMPTS = 3;
+    private int reconnectAttempts = 0;
+    private ConnectionPool connectionPool;
+    private boolean shouldReturnToPool = false;
+
+    // New constructor with pool
+    public ChatClient(URI serverUri, MessageQueue messageQueue, int messagesToSend,
+                      CountDownLatch latch, AtomicInteger successCount,
+                      AtomicInteger failureCount, ConnectionStats stats,
+                      ConnectionPool connectionPool) {
+        super(serverUri);
+        this.messageQueue = messageQueue;
+        this.messagesToSend = messagesToSend;
+        this.latch = latch;
+        this.successCount = successCount;
+        this.failureCount = failureCount;
+        this.stats = stats;
+        this.connectionPool = connectionPool;
+        this.shouldReturnToPool = (connectionPool != null);
+    }
 
     public ChatClient(URI serverUri, MessageQueue messageQueue, int messagesToSend,
                       CountDownLatch latch, AtomicInteger successCount,
@@ -60,7 +80,14 @@ public class ChatClient extends WebSocketClient {
             } catch (InterruptedException e) {
                 System.out.println("Consumer interrupted: " + e.getMessage());
             } finally {
-                close();
+                if (!shouldReturnToPool) {
+                    close();
+                } else {
+                    if (connectionPool != null) {
+                        connectionPool.release(this);
+                    }
+                    latch.countDown();
+                }
             }
         }).start();
     }
@@ -101,6 +128,33 @@ public class ChatClient extends WebSocketClient {
         return false;
     }
 
+    private void attemptReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            System.out.println("Max reconnection attempts reached");
+            stats.recordFailedConnection();
+            latch.countDown();
+            return;
+        }
+
+        reconnectAttempts++;
+        stats.recordReconnection();
+
+        long backoffMs = (long) (1000 * Math.pow(2, reconnectAttempts - 1));
+        System.out.println("Reconnection attempt " + reconnectAttempts + " after " + backoffMs + "ms");
+
+        // Run reconnect in a NEW thread (not the WebSocket thread)
+        new Thread(() -> {
+            try {
+                Thread.sleep(backoffMs);
+                reconnect();
+            } catch (InterruptedException e) {
+                System.out.println("Reconnection interrupted");
+                latch.countDown();
+            }
+        }).start();
+    }
+
+
     @Override
     public void onMessage(String message) {
         if (message.contains("\"status\":\"SUCCESS\"")) {
@@ -112,14 +166,24 @@ public class ChatClient extends WebSocketClient {
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        System.out.println("Client closed after sending " + sentCount + " messages");
-        latch.countDown();
+        if (remote && sentCount < messagesToSend && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            System.out.println("Unexpected disconnect, reconnecting...");
+            attemptReconnect();
+        } else {
+            System.out.println("Client closed after sending " + sentCount + " messages");
+            latch.countDown();
+        }
     }
 
     @Override
     public void onError(Exception ex) {
         System.out.println("Error: " + ex.getMessage());
-        stats.recordFailedConnection();
-        failureCount.incrementAndGet();
+
+        if (!isOpen() && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            attemptReconnect();
+        } else {
+            stats.recordFailedConnection();
+            failureCount.incrementAndGet();
+        }
     }
 }

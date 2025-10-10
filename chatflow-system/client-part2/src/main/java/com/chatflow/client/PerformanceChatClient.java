@@ -18,9 +18,13 @@ public class PerformanceChatClient extends WebSocketClient {
     private AtomicInteger successCount;
     private AtomicInteger failureCount;
     private ConnectionStats stats;
+    private static final int MAX_RECONNECT_ATTEMPTS = 3;
+    private int reconnectAttempts = 0;
     private int messagesToSend;
     private int sentCount = 0;
     private int roomId;
+    private ConnectionPool connectionPool;
+    private boolean shouldReturnToPool = false;
 
     // Track send times for each message
     private ConcurrentHashMap<Integer, Long> sendTimes = new ConcurrentHashMap<>();
@@ -28,6 +32,25 @@ public class PerformanceChatClient extends WebSocketClient {
     private AtomicInteger messageIdCounter = new AtomicInteger(0);
 
     private ObjectMapper objectMapper = new ObjectMapper();
+
+    public PerformanceChatClient(URI serverUri, MessageQueue messageQueue,
+                                 MetricsCollector metricsCollector, int messagesToSend,
+                                 int roomId, CountDownLatch latch,
+                                 AtomicInteger successCount, AtomicInteger failureCount,
+                                 ConnectionStats stats, ConnectionPool connectionPool) {
+        super(serverUri);
+        this.messageQueue = messageQueue;
+        this.metricsCollector = metricsCollector;
+        this.messagesToSend = messagesToSend;
+        this.roomId = roomId;
+        this.latch = latch;
+        this.successCount = successCount;
+        this.failureCount = failureCount;
+        this.stats = stats;
+        this.connectionPool = connectionPool;
+        this.shouldReturnToPool = (connectionPool != null);
+    }
+
 
     public PerformanceChatClient(URI serverUri, MessageQueue messageQueue,
                                  MetricsCollector metricsCollector, int messagesToSend,
@@ -44,6 +67,7 @@ public class PerformanceChatClient extends WebSocketClient {
         this.failureCount = failureCount;
         this.stats = stats;
     }
+
 
     @Override
     public void onOpen(ServerHandshake handshake) {
@@ -76,7 +100,15 @@ public class PerformanceChatClient extends WebSocketClient {
             } catch (InterruptedException e) {
                 System.out.println("Client interrupted: " + e.getMessage());
             } finally {
-                close();
+                if (!shouldReturnToPool) {
+                    close();
+                } else {
+                    // Return to pool instead of closing
+                    if (connectionPool != null) {
+                        connectionPool.release(this);
+                    }
+                    latch.countDown();
+                }
             }
         }).start();
     }
@@ -134,14 +166,55 @@ public class PerformanceChatClient extends WebSocketClient {
         }
     }
 
+    private void attemptReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            System.out.println("Max reconnection attempts reached, giving up");
+            stats.recordFailedConnection();
+            latch.countDown();
+            return;
+        }
+
+        reconnectAttempts++;
+        stats.recordReconnection();
+
+        long backoffMs = (long) (1000 * Math.pow(2, reconnectAttempts - 1));
+        System.out.println("Reconnection attempt " + reconnectAttempts + " after " + backoffMs + "ms");
+
+        // Run reconnect in a NEW thread
+        new Thread(() -> {
+            try {
+                Thread.sleep(backoffMs);
+                reconnect();
+            } catch (InterruptedException e) {
+                System.out.println("Reconnection interrupted");
+                latch.countDown();
+            }
+        }).start();
+    }
+
     @Override
     public void onClose(int code, String reason, boolean remote) {
-        latch.countDown();
+        if (remote && sentCount < messagesToSend && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            System.out.println("Unexpected disconnect, reconnecting...");
+            attemptReconnect();
+        } else {
+            if (shouldReturnToPool && connectionPool != null && isOpen()) {
+                connectionPool.release(this);
+            }
+            latch.countDown();
+        }
     }
 
     @Override
     public void onError(Exception ex) {
-        stats.recordFailedConnection();
-        failureCount.incrementAndGet();
+        System.out.println("Connection error: " + ex.getMessage());
+
+        // Only try to reconnect if we haven't opened yet
+        if (!isOpen() && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            attemptReconnect();
+        } else {
+            stats.recordFailedConnection();
+            failureCount.incrementAndGet();
+        }
     }
 }

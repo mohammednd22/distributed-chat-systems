@@ -9,7 +9,7 @@ import java.util.List;
 
 public class LittlesLawAnalysis {
 
-    private static final String SERVER_URL = "ws://localhost:8080/chat/1";
+    private static final String SERVER_URL = "ws://54.244.12.165:8080/chat/1";
     private static final int SAMPLE_MESSAGES = 100;
 
     public static void main(String[] args) {

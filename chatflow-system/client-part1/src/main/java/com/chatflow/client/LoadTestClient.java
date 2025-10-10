@@ -20,6 +20,7 @@ public class LoadTestClient {
     private static AtomicInteger successCount = new AtomicInteger(0);
     private static AtomicInteger failureCount = new AtomicInteger(0);
     private static Random random = new Random();
+    private static final int CONNECTION_POOL_SIZE = 50;
 
     public static void main(String[] args) {
         System.out.println("=== ChatFlow Load Test Client ===");
@@ -97,47 +98,52 @@ public class LoadTestClient {
     }
 
     private static void runMainPhaseWithQueue(int remainingMessages) throws Exception {
-        // Create message queue
         MessageQueue queue = new MessageQueue(QUEUE_CAPACITY);
 
-        // Start producer thread
         Thread producer = new Thread(new MessageProducer(queue, remainingMessages));
         producer.start();
 
-        // Calculate number of consumer threads
+        // Create connection pool
+        ConnectionPool connectionPool = new ConnectionPool(
+                CONNECTION_POOL_SIZE,
+                SERVER_URL,
+                successCount,
+                failureCount,
+                stats
+        );
+
         int messagesPerThread = 500;
         int numThreads = (int) Math.ceil((double) remainingMessages / messagesPerThread);
 
         CountDownLatch latch = new CountDownLatch(numThreads);
-
         long phaseStart = System.currentTimeMillis();
 
-        // Create consumer clients
+        // Create clients using connection pool
         for (int i = 0; i < numThreads; i++) {
             int roomId = random.nextInt(20) + 1;
-            URI serverUri = new URI(SERVER_URL + roomId);
 
             int messagesToSend = (i == numThreads - 1) ?
                     (remainingMessages - (i * messagesPerThread)) : messagesPerThread;
 
+            // Create client with pool
+            URI serverUri = new URI(SERVER_URL + roomId);
             ChatClient client = new ChatClient(
-                    serverUri,
-                    queue,
-                    messagesToSend,
-                    latch,
-                    successCount,
-                    failureCount,
-                    stats
+                    serverUri, queue, messagesToSend,
+                    latch, successCount, failureCount, stats, connectionPool
             );
 
-            client.connect();
-            //Thread.sleep(10);
+            if (!client.isOpen()) {
+                client.connect();
+            }
         }
 
-        System.out.println("Waiting for main phase to complete...");
-        latch.await(250, TimeUnit.SECONDS);
+        System.out.println("Connection pool size: " + connectionPool.getPoolSize());
+        latch.await(180, TimeUnit.SECONDS);
         System.out.println("Messages still in queue: " + queue.size());
-        producer.join(60000); // Wait for producer to finish
+        producer.join(60000);
+
+        // Shutdown pool
+        connectionPool.shutdown();
 
         long phaseEnd = System.currentTimeMillis();
         double phaseDuration = (phaseEnd - phaseStart) / 1000.0;

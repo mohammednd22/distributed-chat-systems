@@ -20,6 +20,7 @@ public class PerformanceTestClient {
     private static AtomicInteger successCount = new AtomicInteger(0);
     private static AtomicInteger failureCount = new AtomicInteger(0);
     private static Random random = new Random();
+    private static final int CONNECTION_POOL_SIZE = 50; // Reuse 50 connections
 
     public static void main(String[] args) {
         System.out.println("=== ChatFlow Performance Test Client ===");
@@ -95,29 +96,48 @@ public class PerformanceTestClient {
         Thread producer = new Thread(new MessageProducer(queue, remainingMessages));
         producer.start();
 
+        // Create connection pool
+        ConnectionPool connectionPool = new ConnectionPool(
+                CONNECTION_POOL_SIZE,
+                SERVER_URL,
+                metricsCollector,
+                successCount,
+                failureCount,
+                stats
+        );
+
         int messagesPerThread = 500;
         int numThreads = (int) Math.ceil((double) remainingMessages / messagesPerThread);
 
         CountDownLatch latch = new CountDownLatch(numThreads);
         long phaseStart = System.currentTimeMillis();
 
+        // Create worker threads that use pooled connections
         for (int i = 0; i < numThreads; i++) {
             int roomId = random.nextInt(20) + 1;
-            URI serverUri = new URI(SERVER_URL + roomId);
 
             int messagesToSend = (i == numThreads - 1) ?
                     (remainingMessages - (i * messagesPerThread)) : messagesPerThread;
 
+
+            // For simplicity, we'll create new clients but they'll be pooled
+            URI serverUri = new URI(SERVER_URL + roomId);
             PerformanceChatClient client = new PerformanceChatClient(
                     serverUri, queue, metricsCollector, messagesToSend,
-                    roomId, latch, successCount, failureCount, stats
+                    roomId, latch, successCount, failureCount, stats, connectionPool
             );
 
-            client.connect();
+            if (!client.isOpen()) {
+                client.connect();
+            }
         }
 
+        System.out.println("Connection pool size: " + connectionPool.getPoolSize());
         latch.await(180, TimeUnit.SECONDS);
         producer.join(60000);
+
+        // Shutdown pool
+        connectionPool.shutdown();
 
         long phaseEnd = System.currentTimeMillis();
         double duration = (phaseEnd - phaseStart) / 1000.0;
