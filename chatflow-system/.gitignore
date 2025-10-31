@@ -59,6 +59,8 @@ results/*.csv
 results/*.log
 results/charts/
 *.log
+.env
+*.env
 
 # Temporary files
 *.tmp
