@@ -9,7 +9,7 @@ public class ConsumerApplication {
     public static void main(String[] args) {
         System.out.println("=== ChatFlow Consumer Application ===");
 
-        // Get consumer count from command line or use default
+        // Get consumer count
         int numConsumers = DEFAULT_CONSUMER_COUNT;
         if (args.length > 0) {
             try {

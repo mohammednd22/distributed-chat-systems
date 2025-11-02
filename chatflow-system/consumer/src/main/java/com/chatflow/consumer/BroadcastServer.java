@@ -25,7 +25,7 @@ public class BroadcastServer extends WebSocketServer {
         if (roomId != null) {
             connectionRooms.put(conn, roomId);
 
-            // Add user to room manager (we'll use dummy user info for now)
+            // Add user to room manager
             String userId = "broadcast-user-" + System.currentTimeMillis();
             String username = "user" + userId.substring(userId.length() - 4);
 

@@ -23,8 +23,6 @@ public class OptimizedDistributedPerformanceChatClient extends WebSocketClient {
     private int roomId;
     private DistributedConnectionPool connectionPool;
     private boolean shouldReturnToPool = false;
-
-    // Batch correlation for performance
     private static ConcurrentHashMap<String, MessageTracker> globalMessageTracker =
             new ConcurrentHashMap<>();
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -56,7 +54,7 @@ public class OptimizedDistributedPerformanceChatClient extends WebSocketClient {
         stats.recordSuccessfulConnection();
         System.out.println("Sender connected to ALB for room " + roomId);
 
-        // Start consumer thread (same pattern as Assignment 1)
+        // Start consumer thread
         new Thread(() -> {
             try {
                 while (sentCount < messagesToSend && messageQueue.hasMessages()) {
@@ -142,7 +140,6 @@ public class OptimizedDistributedPerformanceChatClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        // Handle ALB acknowledgments (not the end-to-end metrics)
         if (message.contains("\"status\":\"SUCCESS\"")) {
             // Just acknowledgment, real metrics come from receiver clients
         }
@@ -168,7 +165,7 @@ public class OptimizedDistributedPerformanceChatClient extends WebSocketClient {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode messageNode = mapper.readTree(broadcastMessage);
 
-            // Use trackingId for correlation instead of userId
+
             String trackingId = messageNode.get("trackingId").asText();
             MessageTracker tracker = globalMessageTracker.remove(trackingId);
 
@@ -183,7 +180,6 @@ public class OptimizedDistributedPerformanceChatClient extends WebSocketClient {
                 metricsCollector.addMetric(metric);
                 successCount.incrementAndGet();
             } else {
-                // Log when correlation fails for debugging
                 System.out.println("CORRELATION MISS: No tracker found for trackingId: " + trackingId);
                 successCount.incrementAndGet();
             }

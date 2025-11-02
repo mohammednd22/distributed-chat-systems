@@ -53,7 +53,6 @@ public class ConsumerPool {
         System.out.println("Connected to RabbitMQ at " + RABBITMQ_HOST);
     }
 
-    // Add this method
     private void initializeBroadcastServer() {
         this.broadcastServer = new BroadcastServer(BROADCAST_PORT, roomManager);
         System.out.println("BroadcastServer initialized on port " + BROADCAST_PORT);
@@ -90,7 +89,7 @@ public class ConsumerPool {
             assignments.get(consumerIndex).add(String.valueOf(room));
         }
 
-        // Print assignments
+
         System.out.println("Room assignments:");
         for (int i = 0; i < assignments.size(); i++) {
             System.out.println("Consumer-" + (i + 1) + ": rooms " + assignments.get(i));

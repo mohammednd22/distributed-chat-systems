@@ -108,7 +108,7 @@ public class RoomManager {
         String currentTime = Instant.now().toString();
         String existingTime = processedMessages.putIfAbsent(messageId, currentTime);
 
-        // Clean old messages periodically (simple approach)
+        // Clean old messages periodically
         if (processedMessages.size() > 10000) {
             processedMessages.clear();
         }

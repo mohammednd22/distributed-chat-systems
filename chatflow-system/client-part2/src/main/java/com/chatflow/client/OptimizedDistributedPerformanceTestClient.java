@@ -88,11 +88,11 @@ public class OptimizedDistributedPerformanceTestClient {
     private static void runWarmupPhase() throws Exception {
         System.out.println("\n--- Warmup Phase (Preserving Assignment 1 Pattern) ---");
 
-        // Create message queue (same as Assignment 1)
+        // Create message queue
         MessageQueue queue = new MessageQueue(QUEUE_CAPACITY);
         int warmupMessages = WARMUP_THREADS * MESSAGES_PER_WARMUP_THREAD;
 
-        // Single producer thread (same as Assignment 1)
+        // Single producer thread
         Thread producer = new Thread(new MessageProducer(queue, warmupMessages));
         producer.start();
 
@@ -167,7 +167,7 @@ public class OptimizedDistributedPerformanceTestClient {
         System.out.println("Main phase: " + String.format("%.2f", remainingMessages / duration) + " msg/sec");
     }
 
-    // Keep all your existing analysis methods
+
     private static void displayResults(long startTime, long endTime) {
         double totalTime = (endTime - startTime) / 1000.0;
         int totalSent = successCount.get() + failureCount.get();
