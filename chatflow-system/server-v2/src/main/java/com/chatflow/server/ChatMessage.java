@@ -1,7 +1,11 @@
 package com.chatflow.server;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.UUID;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ChatMessage {
     @JsonProperty("userId")
     private String userId;
@@ -18,16 +22,20 @@ public class ChatMessage {
     @JsonProperty("messageType")
     private MessageType messageType;
 
+    @JsonProperty("trackingId")
+    private String trackingId;
+
     // Public Constructor Needed For JSON Framework
     public ChatMessage() {}
 
     // Public Constructor for Java
-    public ChatMessage(String userId, String username, String message, String timestamp, MessageType messageType) {
+    public ChatMessage(String userId, String username, String message, String timestamp, MessageType messageType, String trackingId) {
         this.userId = userId;
         this.username = username;
         this.message = message;
         this.timestamp = timestamp;
         this.messageType = messageType;
+        this.trackingId = trackingId;
     }
 
     public String getUserId() { return userId; }
@@ -44,4 +52,7 @@ public class ChatMessage {
 
     public MessageType getMessageType() { return messageType; }
     public void setMessageType(MessageType messageType) { this.messageType = messageType; }
+
+    public String getTrackingId() { return trackingId; }
+    public void setTrackingId(String trackingId) { this.trackingId = trackingId; }
 }

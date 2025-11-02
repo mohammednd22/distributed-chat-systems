@@ -2,6 +2,7 @@ package com.chatflow.client;
 
 import java.time.Instant;
 import java.util.Random;
+import java.util.UUID;
 
 public class MessageGenerator {
     private static final Random random = new Random();
@@ -32,10 +33,11 @@ public class MessageGenerator {
         String message = MESSAGE_POOL[random.nextInt(MESSAGE_POOL.length)];
         String timestamp = Instant.now().toString();
         String messageType = getRandomMessageType();
+        String trackingId = UUID.randomUUID().toString();
 
         return String.format(
-                "{\"userId\":\"%d\",\"username\":\"%s\",\"message\":\"%s\",\"timestamp\":\"%s\",\"messageType\":\"%s\"}",
-                userId, username, message, timestamp, messageType
+                "{\"userId\":\"%d\",\"username\":\"%s\",\"message\":\"%s\",\"timestamp\":\"%s\",\"messageType\":\"%s\",\"trackingId\":\"%s\"}",
+                userId, username, message, timestamp, messageType, trackingId
         );
     }
 

@@ -32,6 +32,9 @@ public class QueueMessage {
     @JsonProperty("clientIp")
     private String clientIp;
 
+    @JsonProperty("trackingId")
+    private String trackingId;
+
     // Default constructor
     public QueueMessage() {}
 
@@ -62,4 +65,7 @@ public class QueueMessage {
 
     public String getClientIp() { return clientIp; }
     public void setClientIp(String clientIp) { this.clientIp = clientIp; }
+
+    public String getTrackingId() { return trackingId; }
+    public void setTrackingId(String trackingId) { this.trackingId = trackingId; }
 }

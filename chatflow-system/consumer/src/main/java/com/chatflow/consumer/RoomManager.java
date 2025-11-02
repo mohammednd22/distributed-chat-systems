@@ -126,7 +126,8 @@ public class RoomManager {
                     queueMessage.getUsername(),
                     queueMessage.getMessage(),
                     queueMessage.getTimestamp(),
-                    queueMessage.getMessageType().toString()
+                    queueMessage.getMessageType().toString(),
+                    queueMessage.getTrackingId()
             );
 
             return objectMapper.writeValueAsString(broadcast);
@@ -166,9 +167,10 @@ public class RoomManager {
         public String message;
         public String timestamp;
         public String messageType;
+        public String trackingId;
 
         public BroadcastMessage(String messageId, String roomId, String userId,
-                                String username, String message, String timestamp, String messageType) {
+                                String username, String message, String timestamp, String messageType, String trackingId) {
             this.messageId = messageId;
             this.roomId = roomId;
             this.userId = userId;
@@ -176,6 +178,7 @@ public class RoomManager {
             this.message = message;
             this.timestamp = timestamp;
             this.messageType = messageType;
+            this.trackingId = trackingId;
         }
     }
 }

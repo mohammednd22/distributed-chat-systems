@@ -29,7 +29,7 @@ public class MessageConsumer implements Runnable {
         this.objectMapper = new ObjectMapper();
 
         // Configure channel for optimal performance
-        this.channel.basicQos(10); // Prefetch 10 messages
+        this.channel.basicQos(25); // Prefetch 10 messages
 
         System.out.println("Consumer " + consumerId + " created for rooms: " + assignedRooms);
     }
